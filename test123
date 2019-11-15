@@ -1,0 +1,167 @@
+#!/bin/sh
+
+projectname='redhat-workshop'
+openshift_ip="52.117.58.211"
+username='developer'
+password='developer'
+mongo_url='http://icici-server12.104.211.217.70.nip.io/api/project/'
+jenkins_url='http://169.62.184.121:8081'
+jen_user='Cateina'
+jen_password='cateina@1234'
+git_url="giteaa-redhat-workshop.52.117.37.99.nip.io"
+git_user='cateina1'
+git_password='energy'
+event_file='/var/jenkins_home/workspace/"${JOB_NAME}"/devops-ace-iSurePay-testscripts/event.txt'
+#### Change this 
+
+
+
+rm -rf /var/jenkins_home/workspace/"${JOB_NAME}"/*
+cd /var/jenkins_home/workspace/"${JOB_NAME}"
+git clone http://"$git_url"/ixc-devops/devops-ace-iSurePay-testscripts.git
+cd /var/jenkins_home/workspace/"${JOB_NAME}"/devops-ace-iSurePay-testscripts
+product_name=`cat Jenkins_Input_Data | grep "product_name" | awk -F"=" '{print $2}' | tr -d " "`
+echo "Product name = $product_name"
+service_name=`cat Jenkins_Input_Data | grep "service_name" | awk -F"=" '{print $2}' | tr -d " "`
+echo "service_name = $service_name"
+client_code=`cat Jenkins_Input_Data | grep "client_code" | awk -F"=" '{print $2}' | tr -d " "`
+echo " client_code = $client_code"
+#########
+project_id=$(cat Jenkins_Input_Data | grep -i 'projectId' | awk -F'=' '{print $2}' | tr -d ' ')
+urls=$(echo "http://http-api-apiconnect.52.117.58.211.nip.io/development/sandbox$basepath/$paths")
+
+
+
+cd /var/jenkins_home/workspace/"${JOB_NAME}"
+git clone http://"$git_user":"$git_password"@"$git_url"/ixc-iSurePay-apic-impl/iSurePay-rest-proxy.git
+#git clone http://"$git_user":"$git_password"@"$git_url"/ixc-ace-iSurePay-models/iSurePay_TransactionProcessingStatus_Model_001.git
+git clone http://"$git_user":"$git_password"@"$git_url"/ixc-ace-iSurePay-models/iSurePay_webservices_model_receipt.git
+git clone http://"$git_user":"$git_password"@"$git_url"/ixc-ace-iSurePay-models/iSurePay_webservices_model_validation.git
+git clone http://"$git_user":"$git_password"@"$git_url"/ixc-ace-iSurePay-impl/"$service_name"_"$client_code".git
+
+cd /var/jenkins_home/workspace/"${JOB_NAME}"
+echo "http://"$git_user":"$git_password"@"$git_url"/ixc-ace-iSurePay-impl/"$service_name"_"$client_code".git" | tr -d "  "> service.txt
+git clone `cat service.txt `
+container_temp="$service_name"_"$client_code" 
+valid_yaml="$service_name"_Validation_"$client_code" 
+confirm_yaml="$service_name"_Confirmation_"$client_code" 
+
+container_temp1=`echo $client_code | tr '[:upper:]' '[:lower:]' | sed -e 's/_/-/g'`
+
+container_name=`echo $container_temp | tr '[:upper:]' '[:lower:]' | sed -e 's/_/-/g'`
+echo "$container_name"
+
+echo "Creating the container..."
+server_name="$container_name"
+/var/jenkins_home/oc login https://$openshift_ip  -u $username -p $password -n "$projectname" --insecure-skip-tls-verify
+#/var/jenkins_home/oc run "$container_temp1" --image=ibmcom/ace --env="LICENSE=accept"
+/var/jenkins_home/oc project $projectname
+sleep 15
+pod_name=`/var/jenkins_home/oc get pods | grep "non-prod-icici-ace-mq" | awk -F" " '{print $1}'`
+echo "$pod_name"
+#servername=`/var/jenkins_home/oc get pod | grep "$temp"| awk -F" " '{print $1}'`
+
+/var/jenkins_home/oc rsh $pod_name bash -c "mkdir -p /home/aceuser/build/$client_code/IN"
+/var/jenkins_home/oc rsh $pod_name bash -c "mkdir -p /home/aceuser/build/$client_code/OUT"
+/var/jenkins_home/oc rsh $pod_name bash -c "mkdir -p /home/aceuser/build/$client_code/REQUEST"
+/var/jenkins_home/oc rsh $pod_name bash -c "mkdir -p /home/aceuser/build/$client_code/Service"
+/var/jenkins_home/oc rsh $pod_name bash -c "mkdir -p /home/aceuser/build/$client_code/YAML"
+/var/jenkins_home/oc rsh $pod_name bash -c "mkdir -p /home/aceuser/build/$client_code/Library"
+/var/jenkins_home/oc rsh $pod_name bash -c "mkdir -p /home/aceuser/build/$client_code/IntegrationServer"
+/var/jenkins_home/oc rsh $pod_name bash -c "chmod -R 777  /home/aceuser/build/$client_code"
+
+cd /var/jenkins_home/workspace/"${JOB_NAME}"/iSurePay-rest-proxy
+
+if [ "$service_name" = "iSurePay_RT_ChequeCash_ClientValidation_iCore" ]
+	then
+	basepath=`cat /var/jenkins_home/workspace/"${JOB_NAME}"/iSurePay-rest-proxy/$container_temp.yaml | grep "^basePath" | awk -F":" '{print $2}' | tr -d " "`
+	#echo "$basepath"
+	paths=`cat /var/jenkins_home/workspace/"${JOB_NAME}"/iSurePay-rest-proxy/$container_temp.yaml | grep -A 1  "^paths" | awk -F '/' '{print $2}' | tr -d ": \n"`
+	#echo "$paths"
+	#urls=`echo "http://http-api-apiconnect.52.117.58.211.nip.io/development/sandbox$basepath/$paths"`
+	#echo "$urls"
+	/var/jenkins_home/oc rsync /var/jenkins_home/workspace/"${JOB_NAME}"/"$service_name"_"$client_code" "$pod_name":/home/aceuser/build/"$client_code"
+	/var/jenkins_home/oc rsync /var/jenkins_home/workspace/"${JOB_NAME}"/iSurePay-rest-proxy "$pod_name":/home/aceuser/build/"$client_code"/
+	#/var/jenkins_home/oc rsync /var/jenkins_home/workspace/"${JOB_NAME}"/iSurePay_TransactionProcessingStatus_Model_001 "$pod_name":/home/aceuser/build/"$client_code"
+	/var/jenkins_home/oc rsync /var/jenkins_home/workspace/"${JOB_NAME}"/iSurePay_webservices_model_validation "$pod_name":/home/aceuser/build/"$client_code"
+	/var/jenkins_home/oc rsync /var/jenkins_home/workspace/"${JOB_NAME}"/iSurePay_webservices_model_receipt "$pod_name":/home/aceuser/build/"$client_code"
+	if [ "$?" -eq 0 ]
+    then
+    	echo 'code_checked_out SUCCESS';
+        event='code_checked_out'
+        curl -vs -X PUT "$mongo_url" -H "accept: application/json" -H "Content-Type: application/json" -d "{ \"projectId\": \"$project_id\", \"event\": \"$event\",\"status\": \"SUCCESS\", \"username\": \"NA\", \"orgName\": \"NA\"}" 
+        sed -i '1d' "$event_file"
+	else 
+    	echo 'code_checked_out FAILED'
+        while read event 
+        do
+            #event=$(echo $out)
+            curl -vs -X PUT "$mongo_url" -H "accept: application/json" -H "Content-Type: application/json" -d "{ \"projectId\": \"$project_id\", \"event\": \"$event\",\"status\": \"FAILED\", \"username\": \"NA\", \"orgName\": \"NA\"}" 
+        done < "$event_file"
+        exit 1 ;
+    fi
+    
+    /var/jenkins_home/oc rsh $pod_name bash -c "sed -i 's,http://http-api-apiconnect.52.117.58.211.nip.io/development/sandbox/,$urls,g' /home/aceuser/build/"$client_code"/"$service_name"_"$client_code"/properties/replaceable.properties" 	
+	/var/jenkins_home/oc rsh $pod_name bash -c 'cd /opt/ibm/ace-11/server/bin;  . mqsiprofile'
+	
+    unit_var1=$(/var/jenkins_home/oc rsh $pod_name bash -c "cd /home/aceuser/build/'$client_code'; mqsipackagebar -a '$service_name'_'$client_code'.bar -w /home/aceuser/build/'$client_code' -k '$service_name'_'$client_code' -y iSurePay_MISReport_Model_001")
+    #echo $unit_var1;
+    unit_var2=$(echo $unit_var1 | grep -i -o 'warning' | wc -w)
+    if [ "$unit_var2" -ge 1 ]
+    then
+    	echo 'application_deployment_unit_created FAILED'
+        while read event 
+        do
+            curl -vs -X PUT "$mongo_url" -H "accept: application/json" -H "Content-Type: application/json" -d "{ \"projectId\": \"$project_id\", \"event\": \"$event\",\"status\": \"FAILED\", \"username\": \"NA\", \"orgName\": \"NA\"}" 
+        done < "$event_file"
+        exit 1 ;
+    else
+    	echo 'application_deployment_unit_created SUCCESS'
+        event='application_deployment_unit_created'
+        curl -vs -X PUT "$mongo_url" -H "accept: application/json" -H "Content-Type: application/json" -d "{ \"projectId\": \"$project_id\", \"event\": \"$event\",\"status\": \"SUCCESS\", \"username\": \"NA\", \"orgName\": \"NA\"}" 
+        sed -i '1d' "$event_file"
+    fi
+    
+
+    update_var1=$(/var/jenkins_home/oc rsh $pod_name bash -c "cd /home/aceuser/build/'$client_code'; mqsiapplybaroverride -b '$service_name'_'$client_code'.bar -p /home/aceuser/build/'$client_code'/'$service_name'_'$client_code'/properties/replaceable.properties -r")
+    #The property override '<FILE_UPLOAD_DIRECTORY>' was ignored because it does not correspond to an existing property value that can be replaced, nor is it in the correct format for a property identifier. 
+    update_var2=$( echo $update_var1 | grep -i -o 'ignored'| wc -w )
+    
+    if [ "$update_var2" -ge 1 ]
+    then
+    	echo 'application_deployment_unit_configuration_updated FAILED'
+        while read event 
+        do
+            curl -vs -X PUT "$mongo_url" -H "accept: application/json" -H "Content-Type: application/json" -d "{ \"projectId\": \"$project_id\", \"event\": \"$event\",\"status\": \"FAILED\", \"username\": \"NA\", \"orgName\": \"NA\"}" 
+        done < "$event_file"
+        exit 1 ;
+    else
+        echo 'application_deployment_unit_configuration_updated SUCCESS'
+        event='application_deployment_unit_configuration_updated'
+        curl -vs -X PUT "$mongo_url" -H "accept: application/json" -H "Content-Type: application/json" -d "{ \"projectId\": \"$project_id\", \"event\": \"$event\",\"status\": \"SUCCESS\", \"username\": \"NA\", \"orgName\": \"NA\"}" 
+        sed -i '1d' "$event_file"
+    fi
+    
+    deploy_var=$(/var/jenkins_home/oc rsh $pod_name bash -c "cd /home/aceuser/build/'$client_code'; mqsideploy -i l/var/jenkins_home/ocalhost -p   7600 -a '$service_name'_'$client_code'.bar")
+	count=$(echo $deploy_var | grep -i -o 'FAILED errors' | wc -w )
+    if [ "$count" -ge 1 ]
+    then
+    	echo 'application_deployed FAILED'
+        while read event 
+        do
+            curl -vs -X PUT "$mongo_url" -H "accept: application/json" -H "Content-Type: application/json" -d "{ \"projectId\": \"$project_id\", \"event\": \"$event\",\"status\": \"FAILED\", \"username\": \"NA\", \"orgName\": \"NA\"}" 
+        done < "$event_file"
+        exit 1 ;
+
+	else 
+    	echo 'application_deployed SUCCESS'
+        event='application_deployed'
+        curl -vs -X PUT "$mongo_url" -H "accept: application/json" -H "Content-Type: application/json" -d "{ \"projectId\": \"$project_id\", \"event\": \"$event\",\"status\": \"SUCCESS\", \"username\": \"NA\", \"orgName\": \"NA\"}" 
+        sed -i '1d' "$event_file"
+    fi
+
+fi
+
+
+
+
